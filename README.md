@@ -1,4 +1,6 @@
 # JuegoSpritesheet
+ir al juego
+https://nestum447.github.io/JuegoSpritesheet/
 
 # MiniJuegoJS - Juego con Sprites Animados y Fondo Transparente
 
