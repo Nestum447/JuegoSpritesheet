@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Mini Juego - Spritesheet</title>
+<title>Mini Juego - Sprites Transparente</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
 body { 
@@ -53,14 +53,21 @@ canvas { background: #111; margin-top: 10px; }
   background-color: #0b84f7;
   color: white;
 }
+input { margin-top:5px; }
 </style>
 </head>
 <body>
 
 <div id="startScreen">
-  <h2>Selecciona tu spritesheet de jugador</h2>
-  <input type="file" id="imageInput" accept="image/*">
-  <input type="number" id="framesInput" placeholder="Número de frames" min="1" style="margin-top:10px;">
+  <h2>Selecciona sprites de jugador y enemigos</h2>
+  <label>Jugador (spritesheet horizontal)</label>
+  <input type="file" id="playerInput" accept="image/*">
+  <input type="number" id="playerFrames" placeholder="Frames jugador" min="1">
+  
+  <label>Enemigo (spritesheet horizontal)</label>
+  <input type="file" id="enemyInput" accept="image/*">
+  <input type="number" id="enemyFrames" placeholder="Frames enemigo" min="1">
+  
   <button id="startButton" disabled>Comenzar Juego</button>
 </div>
 
@@ -75,11 +82,14 @@ const ctx = canvas.getContext("2d");
 
 // Jugador
 const jugador = { x: 200, y: 200, size: 50, velocidad: 180 };
-let jugadorImg = null;
-let totalFrames = 1;
-let currentFrame = 0;
-let frameTimer = 0;
-const frameInterval = 0.1; // segundos por frame
+let jugadorImg = null, totalFramesJugador = 1, currentFrameJugador = 0, frameTimerJugador = 0, frameInterval = 0.1;
+
+// Enemigos
+let enemigoImg = null, totalFramesEnemigo = 1;
+const enemigos = [
+  { x: 50, y: 50, size: 40, velocidad: 100, dirX: 1, dirY: 1, currentFrame: 0, frameTimer: 0 },
+  { x: 400, y: 150, size: 50, velocidad: 80, dirX: -1, dirY: 1, currentFrame: 0, frameTimer: 0 }
+];
 
 // Obstáculos
 const obstaculos = [
@@ -88,170 +98,125 @@ const obstaculos = [
   { x: 150, y: 350, width: 200, height: 20 }
 ];
 
-// Enemigos
-const enemigos = [
-  { x: 50, y: 50, size: 40, velocidad: 100, dirX: 1, dirY: 1 },
-  { x: 400, y: 150, size: 50, velocidad: 80, dirX: -1, dirY: 1 }
-];
-
 // Puntaje y nivel
-let puntos = 0;
-let nivel = 1;
+let puntos = 0, nivel = 1;
 
 // Sonidos
 const sonidoFondo = new Audio("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
-sonidoFondo.loop = true;
-sonidoFondo.volume = 0.2;
-
+sonidoFondo.loop = true; sonidoFondo.volume = 0.2;
 const sonidoPerder = new Audio("https://www.soundjay.com/button/beep-07.mp3");
 sonidoPerder.volume = 0.5;
 let audioIniciado = false;
-function iniciarAudio() {
-  if (!audioIniciado) {
-    sonidoFondo.play().catch(()=>{});
-    audioIniciado = true;
-  }
-}
+function iniciarAudio() { if(!audioIniciado){ sonidoFondo.play().catch(()=>{}); audioIniciado=true; }}
 
 // Joystick
 const joystick = document.getElementById("joystick");
 const stick = document.getElementById("stick");
-const center = { x: 60, y: 60 };
-let dragging = false;
-let dirX = 0, dirY = 0;
-
-function moverStick(touch) {
-  const rect = joystick.getBoundingClientRect();
-  const x = touch.clientX - rect.left;
-  const y = touch.clientY - rect.top;
-  let dx = x - center.x;
-  let dy = y - center.y;
-  const distancia = Math.sqrt(dx*dx + dy*dy);
-  if (distancia > 40) { dx = (dx / distancia) * 40; dy = (dy / distancia) * 40; }
-  stick.style.left = (center.x - 25 + dx) + "px";
-  stick.style.top = (center.y - 25 + dy) + "px";
-  dirX = dx / 40;
-  dirY = dy / 40;
+const center = { x:60, y:60 }; let dragging=false, dirX=0, dirY=0;
+function moverStick(touch){
+  const rect=joystick.getBoundingClientRect();
+  let dx=touch.clientX-rect.left-center.x;
+  let dy=touch.clientY-rect.top-center.y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist>40){ dx=(dx/dist)*40; dy=(dy/dist)*40;}
+  stick.style.left=(center.x-25+dx)+"px";
+  stick.style.top=(center.y-25+dy)+"px";
+  dirX=dx/40; dirY=dy/40;
 }
-
-joystick.addEventListener("touchstart", (e) => { dragging = true; moverStick(e.touches[0]); iniciarAudio(); });
-joystick.addEventListener("touchmove", (e) => { if (dragging) moverStick(e.touches[0]); });
-joystick.addEventListener("touchend", () => { dragging = false; dirX = 0; dirY = 0; stick.style.left = "35px"; stick.style.top = "35px"; });
-
+joystick.addEventListener("touchstart", e=>{ dragging=true; moverStick(e.touches[0]); iniciarAudio(); });
+joystick.addEventListener("touchmove", e=>{ if(dragging)moverStick(e.touches[0]); });
+joystick.addEventListener("touchend", ()=>{ dragging=false; dirX=0; dirY=0; stick.style.left="35px"; stick.style.top="35px"; });
 canvas.addEventListener("mousedown", iniciarAudio);
 
-// Colisión
-function colision(j, o) {
-  return !(j.x + j.size < o.x || j.x > o.x + o.width || j.y + j.size < o.y || j.y > o.y + o.height);
-}
+// Colisión básica por bounding box
+function colision(j,o){ return !(j.x+j.size<o.x || j.x>o.x+o.width || j.y+j.size<o.y || j.y>o.y+o.height); }
 
-// Selección de spritesheet
-const imageInput = document.getElementById("imageInput");
-const framesInput = document.getElementById("framesInput");
-const startButton = document.getElementById("startButton");
+// Inputs
+const playerInput=document.getElementById("playerInput");
+const playerFramesInput=document.getElementById("playerFrames");
+const enemyInput=document.getElementById("enemyInput");
+const enemyFramesInput=document.getElementById("enemyFrames");
+const startButton=document.getElementById("startButton");
 
-imageInput.addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (file && framesInput.value > 0) {
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      jugadorImg = new Image();
-      jugadorImg.src = ev.target.result;
-      totalFrames = parseInt(framesInput.value);
-      startButton.disabled = false;
-    }
+function checkStart(){ if(playerInput.files.length>0 && playerFramesInput.value>0 && enemyInput.files.length>0 && enemyFramesInput.value>0) startButton.disabled=false; else startButton.disabled=true;}
+
+[playerInput, playerFramesInput, enemyInput, enemyFramesInput].forEach(el=>el.addEventListener("input", checkStart));
+
+playerInput.addEventListener("change", ()=>{ 
+  const file=playerInput.files[0];
+  if(file){ const reader=new FileReader();
+    reader.onload=function(ev){ jugadorImg=new Image(); jugadorImg.src=ev.target.result; totalFramesJugador=parseInt(playerFramesInput.value); checkStart();}
+    reader.readAsDataURL(file);
+  }
+});
+enemyInput.addEventListener("change", ()=>{
+  const file=enemyInput.files[0];
+  if(file){ const reader=new FileReader();
+    reader.onload=function(ev){ enemigoImg=new Image(); enemigoImg.src=ev.target.result; totalFramesEnemigo=parseInt(enemyFramesInput.value); checkStart();}
     reader.readAsDataURL(file);
   }
 });
 
-framesInput.addEventListener("input", () => {
-  if (imageInput.files.length > 0 && framesInput.value > 0) {
-    startButton.disabled = false;
-  } else {
-    startButton.disabled = true;
-  }
-});
-
 // Iniciar juego
-startButton.addEventListener("click", () => {
-  document.getElementById("startScreen").style.display = "none";
-  canvas.style.display = "block";
-  joystick.style.display = "block";
+startButton.addEventListener("click", ()=>{
+  document.getElementById("startScreen").style.display="none";
+  canvas.style.display="block";
+  joystick.style.display="block";
   requestAnimationFrame(gameLoop);
 });
 
 // Game loop
-let ultimoTiempo = null;
-function gameLoop(tiempoActual) {
-  if (!ultimoTiempo) ultimoTiempo = tiempoActual;
-  const deltaTime = (tiempoActual - ultimoTiempo) / 1000;
-  ultimoTiempo = tiempoActual;
+let ultimoTiempo=null;
+function gameLoop(tiempoActual){
+  if(!ultimoTiempo) ultimoTiempo=tiempoActual;
+  const deltaTime=(tiempoActual-ultimoTiempo)/1000;
+  ultimoTiempo=tiempoActual;
 
   // Movimiento jugador
-  const jugadorTemp = { ...jugador };
-  jugadorTemp.x += dirX * jugador.velocidad * deltaTime;
-  jugadorTemp.y += dirY * jugador.velocidad * deltaTime;
+  const jugadorTemp={...jugador};
+  jugadorTemp.x+=dirX*jugador.velocidad*deltaTime;
+  jugadorTemp.y+=dirY*jugador.velocidad*deltaTime;
+  let choco=false; obstaculos.forEach(o=>{ if(colision(jugadorTemp,o)) choco=true; });
+  if(!choco){ jugador.x=jugadorTemp.x; jugador.y=jugadorTemp.y; }
+  if(jugador.x<0) jugador.x=0; if(jugador.x>canvas.width-jugador.size) jugador.x=canvas.width-jugador.size;
+  if(jugador.y<0) jugador.y=0; if(jugador.y>canvas.height-jugador.size) jugador.y=canvas.height-jugador.size;
 
-  let chocó = false;
-  obstaculos.forEach(o => { if (colision(jugadorTemp, o)) chocó = true; });
-  if (!chocó) { jugador.x = jugadorTemp.x; jugador.y = jugadorTemp.y; }
-
-  // Límites
-  if (jugador.x < 0) jugador.x = 0;
-  if (jugador.x > canvas.width - jugador.size) jugador.x = canvas.width - jugador.size;
-  if (jugador.y < 0) jugador.y = 0;
-  if (jugador.y > canvas.height - jugador.size) jugador.y = canvas.height - jugador.size;
-
-  // Animación spritesheet
-  if (dirX !== 0 || dirY !== 0) {
-    frameTimer += deltaTime;
-    if (frameTimer >= frameInterval) {
-      frameTimer = 0;
-      currentFrame = (currentFrame + 1) % totalFrames;
-    }
-  } else {
-    currentFrame = 0;
-  }
+  // Animación jugador
+  if(dirX!==0||dirY!==0){ frameTimerJugador+=deltaTime; if(frameTimerJugador>=frameInterval){ frameTimerJugador=0; currentFrameJugador=(currentFrameJugador+1)%totalFramesJugador;} }
+  else currentFrameJugador=0;
 
   // Movimiento enemigos
-  enemigos.forEach(e => {
-    e.x += e.dirX * e.velocidad * deltaTime;
-    e.y += e.dirY * e.velocidad * deltaTime;
-    if (e.x < 0 || e.x > canvas.width - e.size) e.dirX *= -1;
-    if (e.y < 0 || e.y > canvas.height - e.size) e.dirY *= -1;
-    if (colision(jugador, e)) { 
-      puntos = 0; 
-      nivel = 1; 
-      sonidoPerder.play().catch(()=>{}); 
-    }
+  enemigos.forEach(e=>{
+    e.x+=e.dirX*e.velocidad*deltaTime; e.y+=e.dirY*e.velocidad*deltaTime;
+    if(e.x<0 || e.x>canvas.width-e.size) e.dirX*=-1;
+    if(e.y<0 || e.y>canvas.height-e.size) e.dirY*=-1;
+
+    // Animación enemigo
+    e.frameTimer+=deltaTime; if(e.frameTimer>=frameInterval){ e.frameTimer=0; e.currentFrame=(e.currentFrame+1)%totalFramesEnemigo; }
+
+    if(colision(jugador,e)) { puntos=0; nivel=1; sonidoPerder.play().catch(()=>{}); }
   });
 
-  // Puntaje y niveles
-  puntos += deltaTime * 5;
-  if (puntos >= nivel * 20) nivel++;
+  // Puntaje y nivel
+  puntos+=deltaTime*5; if(puntos>=nivel*20) nivel++;
 
   // Dibujar
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="red"; obstaculos.forEach(o=>ctx.fillRect(o.x,o.y,o.width,o.height));
 
-  ctx.fillStyle = "red";
-  obstaculos.forEach(o => ctx.fillRect(o.x, o.y, o.width, o.height));
-
-  ctx.fillStyle = "orange";
-  enemigos.forEach(e => ctx.fillRect(e.x, e.y, e.size, e.size));
-
-  if (jugadorImg) {
-    const frameWidth = jugadorImg.width / totalFrames;
-    ctx.drawImage(jugadorImg, frameWidth * currentFrame, 0, frameWidth, jugadorImg.height,
-                  jugador.x, jugador.y, jugador.size, jugador.size);
-  } else {
-    ctx.fillStyle = "blue";
-    ctx.fillRect(jugador.x, jugador.y, jugador.size, jugador.size);
+  if(jugadorImg){ 
+    const frameWidth=jugadorImg.width/totalFramesJugador;
+    ctx.drawImage(jugadorImg, frameWidth*currentFrameJugador,0,frameWidth,jugadorImg.height, jugador.x,jugador.y,jugador.size,jugador.size);
   }
 
-  ctx.fillStyle = "white";
-  ctx.font = "20px Arial";
-  ctx.fillText("Puntos: " + Math.floor(puntos), 10, 30);
-  ctx.fillText("Nivel: " + nivel, 10, 60);
+  if(enemigoImg){
+    const frameWidthEnemy=enemigoImg.width/totalFramesEnemigo;
+    enemigos.forEach(e=>ctx.drawImage(enemigoImg, frameWidthEnemy*e.currentFrame,0,frameWidthEnemy,enemigoImg.height, e.x,e.y,e.size,e.size));
+  }
+
+  ctx.fillStyle="white"; ctx.font="20px Arial";
+  ctx.fillText("Puntos: "+Math.floor(puntos),10,30);
+  ctx.fillText("Nivel: "+nivel,10,60);
 
   requestAnimationFrame(gameLoop);
 }
